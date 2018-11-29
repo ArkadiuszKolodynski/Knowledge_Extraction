@@ -101,16 +101,15 @@ def main():
             offset += len(token)
         print('Found tokens: ', tokens)
         print(container)
+        print()
+
+        for token in container:
+            results = execute_query(token)
+            for result in results['results']['bindings']:
+                if result != {} and result['result']['value']:
+                    print(token, result['result']['value'])
     else:
         print('Tokens not found!')
-
-    print()
-
-    for token in container:
-        results = execute_query(token)
-        for result in results['results']['bindings']:
-            if result != {} and result['result']['value']:
-                print(token, result['result']['value'])
 
 
 if __name__ == '__main__':
