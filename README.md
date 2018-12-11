@@ -60,6 +60,6 @@ dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za p
 
 wypisac ten graf do pliku za pomoca funkcji serialize() np.
 
-`file = open('result', 'w')`
+`file = open('result.ttl', 'w')`
 
 `file.write(g.serialize(format='turtle'))`
