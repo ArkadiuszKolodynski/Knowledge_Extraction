@@ -111,9 +111,6 @@ def main():
     g = rdflib.Graph()
     g.parse(FILENAME, format='n3')
 
-    for ns in g.namespaces():
-        print(ns)
-
     context, sentence = get_request_string(g)
     g.remove((context, None, None))
 
