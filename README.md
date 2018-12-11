@@ -63,3 +63,6 @@ wypisac ten graf do pliku za pomoca funkcji serialize() np.
 `file = open('result.ttl', 'w')`
 
 `file.write(g.serialize(format='turtle'))`
+
+Tworzenie bnodow i urirfsow:
+https://rdflib.readthedocs.io/en/stable/rdf_terms.html
