@@ -57,5 +57,6 @@ dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za p
 (rdflib.term.BNode('ub1bL40C1'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#object'), rdflib.term.URIRef('http://dbpedia.org/resource/Sundar_Pichai'))
 
 wypisac ten graf do pliku za pomoca funkcji serialize() np.
+
 file = open('result', 'w')
 file.write(g.serialize(format='turtle'))
