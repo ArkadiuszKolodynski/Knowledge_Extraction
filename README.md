@@ -2,9 +2,10 @@
 
 TODO:
 
-dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za pomocą funkcji add() np. g.add((rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore'))) )
+dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za pomocą funkcji add() np.
+`g.add((rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore')))` )
 
-(rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore'))
+`(rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore'))
 (rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#endIndex'), rdflib.term.Literal('79', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#nonNegativeInteger')))
 (rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#anchorOf'), rdflib.term.Literal('James Damore'))
 (rdflib.term.BNode('ub1bL58C1'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#object'), rdflib.term.URIRef('http://dbpedia.org/resource/Google'))
@@ -54,9 +55,9 @@ dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za p
 (rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=11,24'), rdflib.term.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#beginIndex'), rdflib.term.Literal('11', datatype=rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#nonNegativeInteger')))
 (rdflib.term.BNode('ub1bL58C1'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://www.w3.org/ns/oa#Annotation'))
 (rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Phrase'))
-(rdflib.term.BNode('ub1bL40C1'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#object'), rdflib.term.URIRef('http://dbpedia.org/resource/Sundar_Pichai'))
+(rdflib.term.BNode('ub1bL40C1'), rdflib.term.URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#object'), rdflib.term.URIRef('http://dbpedia.org/resource/Sundar_Pichai'))`
 
 wypisac ten graf do pliku za pomoca funkcji serialize() np.
 
-file = open('result', 'w')
-file.write(g.serialize(format='turtle'))
+`file = open('result', 'w')
+file.write(g.serialize(format='turtle'))`
