@@ -63,42 +63,15 @@ def get_entities(sentence):
 
 def prepare_query(keyword):
     return """
-        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-        PREFIX dbo: <http://dbpedia.org/ontology/>
-
         SELECT ?result WHERE {
             {
                 ?result rdfs:label "$KEYWORD$"@en ;
-                a dbo:Organisation .
-            }
-            UNION
-            {
-                ?result rdfs:label "$KEYWORD$"@en ;
-                a dbo:Person .
-            }
-            UNION
-            {
-                ?result rdfs:label "$KEYWORD$"@en ;
-                a dbo:Place .
+                a owl:Thing .       
             }
             UNION
             {
                 ?altName rdfs:label "$KEYWORD$"@en ;
-                dbo:wikiPageRedirects ?source .
-                ?source rdf:type dbo:Organisation .
-            }
-            UNION
-            {
-                ?altName rdfs:label "$KEYWORD$"@en ;
-                dbo:wikiPageRedirects ?source .
-                ?source rdf:type dbo:Person .
-            }
-            UNION
-            {
-                ?altName rdfs:label "$KEYWORD$"@en ;
-                dbo:wikiPageRedirects ?source .
-                ?source rdf:type dbo:Place .
+                dbo:wikiPageRedirects ?result .
             }
         }
     """.replace('$KEYWORD$', keyword)
