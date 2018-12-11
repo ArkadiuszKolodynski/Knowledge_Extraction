@@ -3,6 +3,7 @@
 TODO:
 
 dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za pomocą funkcji add() np.
+
 `g.add((rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore')))` )
 
 `(rdflib.term.URIRef('https://www.theverge.com/2018/1/19/16911482/james-damore-google-ceo-sundar-pichai-women-in-tech-memo-firing#char=67,79'), rdflib.term.URIRef('http://www.w3.org/2005/11/its/rdf#taIdentRef'), rdflib.term.URIRef('http://aksw.org/notInWiki/James_Damore'))
@@ -60,4 +61,5 @@ dodac do grafu takie tuple [przykladowe dla pierwszego pliku - file_1.ttl] (za p
 wypisac ten graf do pliku za pomoca funkcji serialize() np.
 
 `file = open('result', 'w')
+
 file.write(g.serialize(format='turtle'))`
