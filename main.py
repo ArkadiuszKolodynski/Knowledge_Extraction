@@ -48,7 +48,7 @@ def get_entities(sentence):
     ne_tagged_sent = st.tag(sentence)
 
     ne_chunked_sent = stanford_ne_2_tree(ne_tagged_sent)
-    # print(ne_chunked_sent, '\n')
+    print(ne_chunked_sent, '\n')
 
     named_entities = []
     for tagged_tree in ne_chunked_sent:
@@ -56,7 +56,7 @@ def get_entities(sentence):
             entity_name = ' '.join(c[0] for c in tagged_tree.leaves())
             entity_type = tagged_tree.label()
             named_entities.append((entity_name, entity_type))
-    # print(named_entities, '\n')
+    print(named_entities, '\n')
 
     return [entity[0] for entity in named_entities]
 
@@ -88,10 +88,10 @@ def get_request_string(graph):
     predicate = rdflib.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#isString')
     for s, p, o in graph:
         if p == predicate:
-            return o
+            return s, o
 
 
-def get_entities_container(entities, sentence):
+def prepare_entities_container(entities, sentence):
     entity_container = {}
     offset = 0
     for entity in entities:
@@ -111,21 +111,30 @@ def main():
     g = rdflib.Graph()
     g.parse(FILENAME, format='n3')
 
-    sentence = get_request_string(g)
+    for ns in g.namespaces():
+        print(ns)
+
+    context, sentence = get_request_string(g)
+    g.remove((context, None, None))
+
     print('\nSent: ' + sentence + '\n')
 
     entities = get_entities(sentence)
 
-    if len(entities):
-        entity_container = get_entities_container(entities, sentence)
+    if entities:
+        entity_container = prepare_entities_container(entities, sentence)
 
         for entity in entity_container:
             results = execute_query(entity)
             if entity.endswith('s') and results['results']['bindings'] == []:
                 results = execute_query(entity[:-1])
-            for result in results['results']['bindings']:
-                if result != {} and result['result']['value']:
-                    print(entity, result['result']['value'])
+
+            if not results['results']['bindings']:
+                print(entity, '[NotInWiki]')
+            else:
+                for result in results['results']['bindings']:
+                    if result != {} and result['result']['value']:
+                        print(entity, result['result']['value'])
 
         # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
     else:
