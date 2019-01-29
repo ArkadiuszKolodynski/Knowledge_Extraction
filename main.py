@@ -6,6 +6,8 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 from tkinter import filedialog
 from tkinter import *
 
+nltk.download('averaged_perceptron_tagger')
+
 
 FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
@@ -117,28 +119,7 @@ def prepare_entities_container(entities, sentence):
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
-def main():
-
-    top.title("Knowledge Extraction")
-    top.geometry("590x660")
-    B = Button(top, text="Wczytaj plik", command=filePath, height=2, width=80)
-    B.place(x=10, y=550)
-    Btn = Button(top, text="Zatwierdź", command="", height=2, width=80)
-    Btn.place(x=10, y=600)
-
-    scrollbar = Scrollbar(top)
-    scrollbar.pack(side=RIGHT, fill=Y)
-
-
-    text.place(x=10, y=10)
-
-    text.pack()
-
-    text.config(yscrollcommand=scrollbar.set)
-    scrollbar.config(command=text.yview)
-
-    top.mainloop()
-
+def run():
     g = rdflib.Graph()
     g.parse(FILENAME, format='n3')
 
@@ -164,9 +145,32 @@ def main():
                     if result != {} and result['result']['value']:
                         print(entity, result['result']['value'])
 
-        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
+                        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
     else:
         print('No entities found!')
+
+
+def main():
+
+    top.title("Knowledge Extraction")
+    top.geometry("590x660")
+    B = Button(top, text="Wczytaj plik", command=filePath, height=2, width=80)
+    B.place(x=10, y=550)
+    Btn = Button(top, text="Zatwierdź", command=run, height=2, width=80)
+    Btn.place(x=10, y=600)
+
+    scrollbar = Scrollbar(top)
+    scrollbar.pack(side=RIGHT, fill=Y)
+
+
+    text.place(x=10, y=10)
+
+    text.pack()
+
+    text.config(yscrollcommand=scrollbar.set)
+    scrollbar.config(command=text.yview)
+
+    top.mainloop()
 
 
 if __name__ == '__main__':
