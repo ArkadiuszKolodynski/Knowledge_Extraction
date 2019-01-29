@@ -3,11 +3,22 @@ import nltk
 from nltk.tag import StanfordNERTagger
 from nltk.chunk import conlltags2tree
 from SPARQLWrapper import SPARQLWrapper, JSON
+from tkinter import filedialog
+from tkinter import *
 
 
-FILENAME = 'request_data/file_1.ttl'
+FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
 NER_PATH = 'stanford_ner/stanford-ner.jar'
+top = Tk()
+text = Text(top, height=32, width=80)
+
+def filePath():
+    global FILENAME
+    FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
+                                          filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
+    f = open(FILENAME, "r")
+    text.insert(END, f.read())
 
 
 def stanford_ne_2_ibo(tagged_sent):
@@ -106,8 +117,28 @@ def prepare_entities_container(entities, sentence):
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
-
 def main():
+
+    top.title("Knowledge Extraction")
+    top.geometry("590x660")
+    B = Button(top, text="Wczytaj plik", command=filePath, height=2, width=80)
+    B.place(x=10, y=550)
+    Btn = Button(top, text="Zatwierdź", command="", height=2, width=80)
+    Btn.place(x=10, y=600)
+
+    scrollbar = Scrollbar(top)
+    scrollbar.pack(side=RIGHT, fill=Y)
+
+
+    text.place(x=10, y=10)
+
+    text.pack()
+
+    text.config(yscrollcommand=scrollbar.set)
+    scrollbar.config(command=text.yview)
+
+    top.mainloop()
+
     g = rdflib.Graph()
     g.parse(FILENAME, format='n3')
 
