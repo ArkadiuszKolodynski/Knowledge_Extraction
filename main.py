@@ -121,7 +121,7 @@ def prepare_entities_container(entities, sentence):
 
 def run():
     g = rdflib.Graph()
-    g.parse(FILENAME, format='n3')
+    g.parse(data=text.get("1.0",END), format='n3')
 
     context, sentence = get_request_string(g)
     g.remove((context, None, None))
