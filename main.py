@@ -21,6 +21,7 @@ outputText = Text(top, height=16, width=80)
 
 def filePath():
     """Method used to get a file path"""
+    inputText.delete('1.0', END)
     global FILENAME
     FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
@@ -274,6 +275,7 @@ def create_graph(entity_container, m_referenceContext):
 
 def run():
     """ Method used to run processing input file"""
+    outputText.delete('1.0', END)
     g = rdflib.Graph()
     g.parse(data=inputText.get("1.0",END), format='n3')
 
@@ -311,6 +313,7 @@ def main():
     w.pack()
     inputText.place(x=10, y=10)
     inputText.pack()
+
 
     inputText.config(yscrollcommand=scrollbar.set)
     scrollbar.config(command=inputText.yview)
