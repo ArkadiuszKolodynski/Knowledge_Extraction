@@ -15,7 +15,9 @@ FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
 NER_PATH = 'stanford_ner/stanford-ner.jar'
 top = Tk()
-text = Text(top, height=32, width=80)
+inputText = Text(top, height=16, width=80)
+outputText = Text(top, height=16, width=80)
+
 
 def filePath():
     """Method used to get a file path"""
@@ -23,7 +25,7 @@ def filePath():
     FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
     f = open(FILENAME, "r")
-    text.insert(END, f.read())
+    inputText.insert(END, f.read())
 
 
 def stanford_ne_2_ibo(tagged_sent):
@@ -266,13 +268,14 @@ def create_graph(entity_container, m_referenceContext):
     # graph output
     print('Output graph \n')
     print(g.serialize(format='turtle').decode('utf-8'))
+    outputText.insert(END, g.serialize(format='turtle').decode('utf-8'))
 
     return g
 
 def run():
     """ Method used to run processing input file"""
     g = rdflib.Graph()
-    g.parse(data=text.get("1.0",END), format='n3')
+    g.parse(data=inputText.get("1.0",END), format='n3')
 
     context, sentence = get_request_string(g)
     g.remove((context, None, None))
@@ -302,14 +305,22 @@ def main():
 
     scrollbar = Scrollbar(top)
     scrollbar.pack(side=RIGHT, fill=Y)
+    scrollbar1 = Scrollbar(top)
+    scrollbar1.pack(side=LEFT, fill=Y)
+    w = Label(top, text="INPUT")
+    w.pack()
+    inputText.place(x=10, y=10)
+    inputText.pack()
 
+    inputText.config(yscrollcommand=scrollbar.set)
+    scrollbar.config(command=inputText.yview)
 
-    text.place(x=10, y=10)
+    w = Label(top, text="OUTPUT")
+    w.pack()
+    outputText.pack()
 
-    text.pack()
-
-    text.config(yscrollcommand=scrollbar.set)
-    scrollbar.config(command=text.yview)
+    outputText.config(yscrollcommand=scrollbar1.set)
+    scrollbar1.config(command=outputText.yview)
 
     top.mainloop()
 
