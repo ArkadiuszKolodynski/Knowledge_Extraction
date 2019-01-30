@@ -1,4 +1,6 @@
 import rdflib
+from rdflib import *
+from rdflib.namespace import *
 import nltk
 from nltk.tag import StanfordNERTagger
 from nltk.chunk import conlltags2tree
@@ -111,13 +113,85 @@ def prepare_entities_container(entities, sentence):
         index = sentence.find(entity)
         sentence = sentence.replace(entity, '', 1)
         indexes_dict = {'beginIndex': index + offset, 'endIndex': index + offset + len(entity)}
+
         if entity in entity_container:
             entity_container[entity]['indexes'].append(indexes_dict)
         else:
             entity_container.update({entity: {'indexes': [indexes_dict]}})
         offset += len(entity)
+
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
+
+
+def create_graph(entity_container, m_referenceContext):
+    g = Graph()
+    namespace_manager = rdflib.namespace.NamespaceManager(g)
+
+    nif = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
+    namespace_manager.bind('nif', nif)
+
+    aksw = Namespace("http://aksw.org/notInWiki/")
+    namespace_manager.bind('aksw', aksw)
+
+    dbr = Namespace("http://dbpedia.org/resource/")
+    namespace_manager.bind('dbr', dbr)
+
+    itsrdf = Namespace("http://www.w3.org/2005/11/its/rdf#")
+    namespace_manager.bind('itsrdf', itsrdf)
+
+    nonNegativeInteger = URIRef('http://www.w3.org/2001/XMLSchema#nonNegativeInteger')
+    typeUri = URIRef('http://www.w3.org/1999/02/22-rdf-syntax-ns#type')
+
+    k = m_referenceContext.rfind("#")
+    contextUrlWithoutHash = m_referenceContext[:k]
+
+    # let's do some rock'n'roll
+    for entity in entity_container:
+        # get results
+        results = execute_query(entity)
+        if entity.endswith('s') and results['results']['bindings'] == []:
+            results = execute_query(entity[:-1])
+
+        m_anchor = entity
+
+        for occur in entity_container[entity]['indexes']:
+            m_beginIndex = occur['beginIndex']
+            m_endIndex = occur['endIndex']
+            m_byte = contextUrlWithoutHash + ("#char=%d,%d" % (m_beginIndex, m_endIndex))
+            m_taIdentRef = ""
+
+            # TODO relations here
+            if not results['results']['bindings']:
+                m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(m_anchor.split(" "))
+                
+            else:
+                for result in results['results']['bindings']:
+                    if result != {} and result['result']['value']:
+                        m_taIdentRef = result['result']['value']
+
+            # assembly all
+            byte = URIRef(m_byte)
+
+            g.add( (byte, typeUri, nif.RFC5147String ) )
+            g.add( (byte, typeUri, nif.Phrase ) )
+            g.add( (byte, typeUri, nif.String ) )
+
+            #idk other way
+            g.add( (byte, URIRef("http://gerbil.aksw.org/eaglet/vocab#hasUserDecision"), URIRef("http://gerbil.aksw.org/eaglet/vocab#Added") ) )
+
+            g.add( (byte, nif.anchorOf, Literal(m_anchor) ) )
+            g.add( (byte, nif.beginIndex, Literal(m_beginIndex, datatype=nonNegativeInteger) ) )
+            g.add( (byte, nif.endIndex, Literal(m_endIndex, datatype=nonNegativeInteger) ) )
+            g.add( (byte, nif.referenceContext, URIRef(m_referenceContext) ) )
+
+            g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
+
+    # graph output
+    print('Output graph \n')
+    print(g.serialize(format='turtle').decode('utf-8'))
+
+    return g
 
 def run():
     g = rdflib.Graph()
@@ -132,25 +206,15 @@ def run():
 
     if entities:
         entity_container = prepare_entities_container(entities, sentence)
+        output_graph = create_graph(entity_container, context)
 
-        for entity in entity_container:
-            results = execute_query(entity)
-            if entity.endswith('s') and results['results']['bindings'] == []:
-                results = execute_query(entity[:-1])
-
-            if not results['results']['bindings']:
-                print(entity, '[NotInWiki]')
-            else:
-                for result in results['results']['bindings']:
-                    if result != {} and result['result']['value']:
-                        print(entity, result['result']['value'])
-
-                        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
+        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
     else:
         print('No entities found!')
 
 
 def main():
+
 
     top.title("Knowledge Extraction")
     top.geometry("590x660")
