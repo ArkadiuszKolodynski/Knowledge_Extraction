@@ -18,6 +18,7 @@ top = Tk()
 text = Text(top, height=32, width=80)
 
 def filePath():
+    """Method used to get a file path"""
     global FILENAME
     FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
@@ -57,6 +58,18 @@ def stanford_ne_2_tree(ne_tagged_sent):
 
 
 def get_entities(sentence):
+    """Method used to get entities from sentence
+
+        Parameters
+        ----------
+        sentence : str
+            phrase with sentence
+      
+        Returns
+        -------
+        named_entities : list
+            list of named entities
+        """
     sentence = nltk.word_tokenize(sentence)
 
     st = StanfordNERTagger(CLASSIFIER_PATH, NER_PATH, encoding='utf-8')
@@ -77,6 +90,18 @@ def get_entities(sentence):
 
 
 def prepare_query(keyword):
+    """ Method used to prepare query to dbpedia
+
+           Parameters
+           ----------
+           keyword : str
+               keyword to search in dbpedia
+               
+           Returns
+           -------
+           query : string
+               prepared query
+           """
     return """
         SELECT ?result WHERE {
             {
@@ -93,13 +118,39 @@ def prepare_query(keyword):
 
 
 def execute_query(keyword):
+    """Method used to execute query to dbpedia
+    
+           Parameters
+           ----------
+           keyword : str
+               keyword to search in dbpedia
+               
+           Returns
+           -------
+           result : dict
+               result from query
+           """
     sparql = SPARQLWrapper('http://dbpedia.org/sparql')
     sparql.setQuery(prepare_query(keyword))
     sparql.setReturnFormat(JSON)
+
     return sparql.query().convert()
 
 
 def get_request_string(graph):
+    """Method used to get request string
+              Parameters
+              ----------
+              graph : Graph
+                  graph 
+
+              Returns
+              -------
+              entities : list
+                    list of entities
+              sentence : rdflib.term.Literal
+                    sentence from triple
+              """
     predicate = rdflib.URIRef('http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#isString')
     for s, p, o in graph:
         if p == predicate:
@@ -107,6 +158,19 @@ def get_request_string(graph):
 
 
 def prepare_entities_container(entities, sentence):
+    """Method used to prepare entities container
+                  Parameters
+                  ----------
+                  entities : list
+                    list of entities
+                  sentence : rdflib.term.Literal
+                    
+                  Returns
+                  -------
+                  entity_container : dict
+                    container of entities
+                  """
+
     entity_container = {}
     offset = 0
     for entity in entities:
@@ -125,6 +189,18 @@ def prepare_entities_container(entities, sentence):
 
 
 def create_graph(entity_container, m_referenceContext):
+    """ Method used to create graph
+                      Parameters
+                      ----------
+                      entity_container : dict
+                        dictionary of entities
+                      m_referenceContext : rdflib.term.URIRef
+                        
+                      Returns
+                      -------
+                      g : Grpah
+                        output graph
+                      """
     g = Graph()
     namespace_manager = rdflib.namespace.NamespaceManager(g)
 
@@ -164,7 +240,7 @@ def create_graph(entity_container, m_referenceContext):
             # TODO relations here
             if not results['results']['bindings']:
                 m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(m_anchor.split(" "))
-                
+
             else:
                 for result in results['results']['bindings']:
                     if result != {} and result['result']['value']:
@@ -194,6 +270,7 @@ def create_graph(entity_container, m_referenceContext):
     return g
 
 def run():
+    """ Method used to run processing input file"""
     g = rdflib.Graph()
     g.parse(data=text.get("1.0",END), format='n3')
 
@@ -214,7 +291,7 @@ def run():
 
 
 def main():
-
+    """ Method used to run program"""
 
     top.title("Knowledge Extraction")
     top.geometry("590x660")
