@@ -8,8 +8,6 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 from tkinter import filedialog
 from tkinter import *
 
-nltk.download('averaged_perceptron_tagger')
-
 
 FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
@@ -269,7 +267,6 @@ def create_graph(entity_container, m_referenceContext):
     # graph output
     print('Output graph \n')
     print(g.serialize(format='turtle').decode('utf-8'))
-    outputText.insert(END, g.serialize(format='turtle').decode('utf-8'))
 
     return g
 
@@ -289,8 +286,7 @@ def run():
     if entities:
         entity_container = prepare_entities_container(entities, sentence)
         output_graph = create_graph(entity_container, context)
-
-        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
+        outputText.insert(END, output_graph.serialize(format='turtle').decode('utf-8'))
     else:
         print('No entities found!')
 
@@ -313,7 +309,6 @@ def main():
     w.pack()
     inputText.place(x=10, y=10)
     inputText.pack()
-
 
     inputText.config(yscrollcommand=scrollbar.set)
     scrollbar.config(command=inputText.yview)
