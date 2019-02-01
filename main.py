@@ -360,6 +360,9 @@ def create_graph(entity_container, m_referenceContext):
     dbr = Namespace("http://dbpedia.org/resource/")
     namespace_manager.bind('dbr', dbr)
 
+    dbo = Namespace("http://dbpedia.org/ontology/")
+    namespace_manager.bind('dbo', dbo)
+
     oa = Namespace("http://www.w3.org/ns/oa#")
     namespace_manager.bind('oa', oa)
 
