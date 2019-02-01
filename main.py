@@ -11,6 +11,7 @@ from nltk.sem import relextract
 import collections
 
 nltk.download('averaged_perceptron_tagger')
+nltk.download('punkt')
 
 FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
@@ -286,7 +287,6 @@ def create_graph(entity_container, m_referenceContext):
 
     # graph output
     #print(g.serialize(format='turtle').decode('utf-8'))
-    outputText.insert(END, g.serialize(format='turtle').decode('utf-8'))
 
     return g
 
@@ -306,7 +306,7 @@ def run():
     if entities:
         entity_container = prepare_entities_container(entities, sentence)
         output_graph = create_graph(entity_container, context)
-
+        outputText.insert(END, output_graph.serialize(format='turtle').decode('utf-8'))
     else:
         print('No entities found!')
 
