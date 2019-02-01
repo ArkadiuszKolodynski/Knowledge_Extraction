@@ -20,6 +20,80 @@ top = Tk()
 inputText = Text(top, height=16, width=80)
 outputText = Text(top, height=16, width=80)
 
+# Function used for own relation extractions
+
+from six.moves import html_entities
+def descape_entity(m, defs=html_entities.entitydefs):
+    """
+    Translate one entity to its ISO Latin value.
+    Inspired by example from effbot.org
+    """
+    try:
+        return defs[m.group(1)]
+
+    except KeyError:
+        return m.group(0)  # use as is
+
+def list2sym(lst):
+    """
+    Convert a list of strings into a canonical symbol.
+    :type lst: list
+    :return: a Unicode string without whitespace
+    :rtype: unicode
+    """
+    sym = _join(lst, '_', untag=True)
+    sym = sym.lower()
+    ENT = re.compile("&(\w+?);")
+    sym = ENT.sub(descape_entity, sym)
+    sym = sym.replace('.', '')
+    return sym
+
+def _join(lst, sep=' ', untag=False):
+    """
+    Join a list into a string, turning tags tuples into tag strings or just words.
+    :param untag: if ``True``, omit the tag from tagged input strings.
+    :type lst: list
+    :rtype: str
+    """
+    try:
+        return sep.join(lst)
+    except TypeError:
+        if untag:
+            return sep.join(tup[0] for tup in lst)
+        from nltk.tag import tuple2str
+
+        return sep.join(tuple2str(tup) for tup in lst)
+
+def rel2dict(pairs):
+
+    result = []
+    for x in range(0, len(pairs)):
+        for y in range(x, len(pairs)):
+            if y == x:
+                continue
+
+            subject = ' '.join(c[0] for c in pairs[x][1].leaves())
+
+            predicate = []
+            if x < y:
+                predicate = pairs[y][0]
+            else:
+                predicate = pairs[x][0]
+
+            obj = ' '.join(c[0] for c in pairs[y][1].leaves())
+
+            result.append((subject, predicate, obj))
+
+    print(result)
+
+    return result
+
+def getGrammarRelations(tree):
+    pairs = relextract.tree2semi_rel(tree)
+    reldicts = rel2dict(pairs)
+    return reldicts
+
+# // Function used for own relation extractions
 
 def filePath():
     """Method used to get a file path"""
@@ -91,7 +165,9 @@ def get_entities(sentence):
             named_entities.append((entity_name, entity_type))
     print(named_entities, '\n')
 
-    return [entity[0] for entity in named_entities]
+    grammarRelations = getGrammarRelations(ne_chunked_sent)
+
+    return ([entity[0] for entity in named_entities], grammarRelations)
 
 
 def prepare_query(keyword):
@@ -145,6 +221,13 @@ def execute_query(keyword):
            """
     sparql = SPARQLWrapper('http://dbpedia.org/sparql')
     sparql.setQuery(prepare_query(keyword))
+    sparql.setReturnFormat(JSON)
+
+    return sparql.query().convert()
+
+def execute_query_relation(query):
+    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
+    sparql.setQuery(query)
     sparql.setReturnFormat(JSON)
 
     return sparql.query().convert()
@@ -219,6 +302,30 @@ def getResourceUrl(entity):
 
     return (ifExists, m_taIdentRef)
 
+def clearQueriedRelation(entity1, entity2, results):
+    predicates = []
+    url = "http://dbpedia.org/ontology/"
+
+    for bindings in results['results']['bindings']:
+        for verb in bindings:
+                value = bindings[verb]['value']
+                id = value.rsplit('/', 1)[-1]
+                print(id)
+
+                if id == "wikiPageWikiLink":
+                    continue
+
+                predicates.append(id)
+
+                # others
+                if id == "keyPerson":
+                    predicates.append("ceo")
+
+                if id == "occupation":
+                    predicates.append("employer")
+
+    return (entity1, entity2, [ url + t for t in predicates])
+
 def create_graph(entity_container, m_referenceContext):
     """ Method used to create graph
                       Parameters
@@ -244,6 +351,9 @@ def create_graph(entity_container, m_referenceContext):
     dbr = Namespace("http://dbpedia.org/resource/")
     namespace_manager.bind('dbr', dbr)
 
+    oa = Namespace("http://www.w3.org/ns/oa#")
+    namespace_manager.bind('oa', oa)
+
     itsrdf = Namespace("http://www.w3.org/2005/11/its/rdf#")
     namespace_manager.bind('itsrdf', itsrdf)
 
@@ -255,13 +365,20 @@ def create_graph(entity_container, m_referenceContext):
 
     # let's do some rock'n'roll
     for entity in entity_container:
-        # get results
-        results = execute_query(entity)
-        if entity.endswith('s') and results['results']['bindings'] == []:
-            results = execute_query(entity[:-1])
-
         m_anchor = entity
         (ifExists, m_taIdentRef) = getResourceUrl(entity)
+        relations = (None, None, [])
+
+        if ifExists:
+            for entity2 in entity_container:
+                if entity == entity2:
+                    continue
+
+                (ifExists2, m_taIdentRef2) = getResourceUrl(entity2)
+                    
+                if ifExists2:
+                    queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
+                    relations = clearQueriedRelation(m_taIdentRef, m_taIdentRef2, queriedRelation)
 
         for occur in entity_container[entity]['indexes']:
             m_beginIndex = occur['beginIndex']
@@ -285,6 +402,24 @@ def create_graph(entity_container, m_referenceContext):
 
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
+            #realtions
+            if relations[2] != []:
+                relByte = BNode()
+
+                g.add( (relByte, typeUri, RDF.Statement ) )
+                g.add( (relByte, typeUri, oa.Annotation ) )
+
+                targetByte = BNode()
+                g.add( (relByte, oa.hasTarget, targetByte ) )
+
+                g.add( (targetByte, typeUri, oa.SpecificResource ) )
+                g.add( (targetByte, oa.hasSource, URIRef(m_referenceContext) ) )
+
+                for relation in range(0, len(relations[2])):
+                    g.add( (relByte, RDF.subject, URIRef(relations[0]) ) )
+                    g.add( (relByte, RDF.object, URIRef(relations[1]) ) )
+                    g.add( (relByte, RDF.predicate, URIRef(relations[2][relation]) ) )
+                
     # graph output
     #print(g.serialize(format='turtle').decode('utf-8'))
 
@@ -301,7 +436,9 @@ def run():
 
     print('\nSent: ' + sentence + '\n')
 
-    entities = get_entities(sentence)
+    (entities, grammarRelations) = get_entities(sentence)
+
+    print("grammar relation: \n", grammarRelations, "\n")
 
     if entities:
         entity_container = prepare_entities_container(entities, sentence)
@@ -311,90 +448,7 @@ def run():
         print('No entities found!')
 
 
-# Function used for own dict
 
-from six.moves import html_entities
-def descape_entity(m, defs=html_entities.entitydefs):
-    """
-    Translate one entity to its ISO Latin value.
-    Inspired by example from effbot.org
-    """
-    try:
-        return defs[m.group(1)]
-
-    except KeyError:
-        return m.group(0)  # use as is
-
-def list2sym(lst):
-    """
-    Convert a list of strings into a canonical symbol.
-    :type lst: list
-    :return: a Unicode string without whitespace
-    :rtype: unicode
-    """
-    sym = _join(lst, '_', untag=True)
-    sym = sym.lower()
-    ENT = re.compile("&(\w+?);")
-    sym = ENT.sub(descape_entity, sym)
-    sym = sym.replace('.', '')
-    return sym
-
-def _join(lst, sep=' ', untag=False):
-    """
-    Join a list into a string, turning tags tuples into tag strings or just words.
-    :param untag: if ``True``, omit the tag from tagged input strings.
-    :type lst: list
-    :rtype: str
-    """
-    try:
-        return sep.join(lst)
-    except TypeError:
-        if untag:
-            return sep.join(tup[0] for tup in lst)
-        from nltk.tag import tuple2str
-
-        return sep.join(tuple2str(tup) for tup in lst)
-
-def rel2dict(pairs, window=5, trace=False):
-
-    result = []
-    for x in range(0, len(pairs)):
-        for y in range(0, len(pairs)):
-            if y == x:
-                continue
-
-            reldict = collections.defaultdict(str)
-
-            reldict['subjclass'] = pairs[x][1].label()
-            reldict['subjtext'] = _join(pairs[x][1].leaves())
-            reldict['subjsym'] = list2sym(pairs[x][1].leaves())
-            
-            if x < y:
-                reldict['predicate'] = _join(pairs[y][0])
-            else:
-                reldict['predicate'] = _join(pairs[x][0])
-
-            reldict['objclass'] = pairs[y][1].label()
-            reldict['objtext'] = _join(pairs[y][1].leaves())
-            reldict['objsym'] = list2sym(pairs[y][1].leaves())
-
-            if trace:
-                print(
-                    "(%s(%s, %s)"
-                    % (
-                        reldict['untagged_filler'],
-                        reldict['subjclass'],
-                        reldict['objclass'],
-                    )
-                )
-
-            result.append(reldict)
-    return result
-
-def getRelations(tree):
-    pairs = relextract.tree2semi_rel(tree)
-    reldicts = rel2dict(pairs, trace=False)
-    return reldicts
 
 def main():
 
