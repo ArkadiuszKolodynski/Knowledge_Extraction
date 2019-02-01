@@ -17,6 +17,7 @@ FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
 NER_PATH = 'stanford_ner/stanford-ner.jar'
 top = Tk()
+Btn = None
 inputText = Text(top, height=16, width=80)
 outputText = Text(top, height=16, width=80)
 
@@ -34,6 +35,7 @@ def filePath():
         inputText.delete('1.0', END)
         f = open(FILENAME, "r")
         inputText.insert(END, f.read())
+        Btn.config(state="normal")
 
 
 def stanford_ne_2_ibo(tagged_sent):
@@ -427,7 +429,8 @@ def main():
     top.geometry("590x680")
     B = Button(top, text="Load .ttl file", command=filePath, height=2, width=80)
     B.place(x=10, y=570)
-    Btn = Button(top, text="Analyze", command=run, height=2, width=80)
+    global Btn
+    Btn = Button(top, text="Analyze", command=run, height=2, width=80, state="disabled")
     Btn.place(x=10, y=620)
 
     scrollbar = Scrollbar(top)
