@@ -30,7 +30,7 @@ def filePath():
     FILENAME = filedialog.askopenfilename(parent=top, initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
 
-    if len(FILENAME) != 0:
+    if len(FILENAME) > 0:
         inputText.delete('1.0', END)
         f = open(FILENAME, "r")
         inputText.insert(END, f.read())
