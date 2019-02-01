@@ -420,9 +420,9 @@ def main():
 
     top.title("Knowledge Extraction")
     top.geometry("590x660")
-    B = Button(top, text="Wczytaj plik", command=filePath, height=2, width=80)
+    B = Button(top, text="Load .ttl file", command=filePath, height=2, width=80)
     B.place(x=10, y=550)
-    Btn = Button(top, text="Zatwierdź", command=run, height=2, width=80)
+    Btn = Button(top, text="Analyze", command=run, height=2, width=80)
     Btn.place(x=10, y=600)
 
     scrollbar = Scrollbar(top)
