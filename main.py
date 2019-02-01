@@ -9,6 +9,7 @@ from tkinter import filedialog
 from tkinter import *
 from nltk.sem import relextract
 import collections
+import threading
 
 nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
@@ -33,6 +34,7 @@ def filePath():
 
     if len(FILENAME) > 0:
         inputText.delete('1.0', END)
+        outputText.delete('1.0', END)
         f = open(FILENAME, "r")
         inputText.insert(END, f.read())
         Btn.config(state="normal")
@@ -299,12 +301,10 @@ def create_graph(entity_container, m_referenceContext):
 
 def run():
     """ Method used to run processing input file"""
-    outputText.delete('1.0', END)
     g = rdflib.Graph()
     g.parse(data=inputText.get("1.0",END), format='n3')
 
     context, sentence = get_request_string(g)
-    g.remove((context, None, None))
 
     print('\nSent: ' + sentence + '\n')
 
@@ -403,6 +403,10 @@ def getRelations(tree):
     reldicts = rel2dict(pairs, trace=False)
     return reldicts
 
+
+def threadButtonRun():
+    threading.Thread(target=run).start()
+
 def main():
 
     '''
@@ -430,7 +434,7 @@ def main():
     B = Button(top, text="Load .ttl file", command=filePath, height=2, width=80)
     B.place(x=10, y=570)
     global Btn
-    Btn = Button(top, text="Analyze", command=run, height=2, width=80, state="disabled")
+    Btn = Button(top, text="Analyze", command=threadButtonRun, height=2, width=80, state="disabled")
     Btn.place(x=10, y=620)
 
     scrollbar = Scrollbar(top)
