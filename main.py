@@ -412,7 +412,7 @@ def create_graph(entity_container, m_referenceContext):
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
             #realtions
-            if relations[2] != []:
+            for relation in range(0, len(relations[2])):
                 relByte = BNode()
 
                 g.add( (relByte, typeUri, RDF.Statement ) )
@@ -424,10 +424,9 @@ def create_graph(entity_container, m_referenceContext):
                 g.add( (targetByte, typeUri, oa.SpecificResource ) )
                 g.add( (targetByte, oa.hasSource, URIRef(m_referenceContext) ) )
 
-                for relation in range(0, len(relations[2])):
-                    g.add( (relByte, RDF.subject, URIRef(relations[0]) ) )
-                    g.add( (relByte, RDF.object, URIRef(relations[1]) ) )
-                    g.add( (relByte, RDF.predicate, URIRef(relations[2][relation]) ) )
+                g.add( (relByte, RDF.subject, URIRef(relations[0]) ) )
+                g.add( (relByte, RDF.object, URIRef(relations[1]) ) )
+                g.add( (relByte, RDF.predicate, URIRef(relations[2][relation]) ) )
                 
     # graph output
     #print(g.serialize(format='turtle').decode('utf-8'))
