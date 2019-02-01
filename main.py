@@ -23,12 +23,17 @@ outputText = Text(top, height=16, width=80)
 
 def filePath():
     """Method used to get a file path"""
-    inputText.delete('1.0', END)
+
     global FILENAME
-    FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
+    top.update()
+
+    FILENAME = filedialog.askopenfilename(parent=top, initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
-    f = open(FILENAME, "r")
-    inputText.insert(END, f.read())
+
+    if len(FILENAME) != 0:
+        inputText.delete('1.0', END)
+        f = open(FILENAME, "r")
+        inputText.insert(END, f.read())
 
 
 def stanford_ne_2_ibo(tagged_sent):
