@@ -9,6 +9,7 @@ from tkinter import filedialog
 from tkinter import *
 from nltk.sem import relextract
 import collections
+import threading
 
 nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
@@ -17,6 +18,7 @@ FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
 NER_PATH = 'stanford_ner/stanford-ner.jar'
 top = Tk()
+Btn = None
 inputText = Text(top, height=16, width=80)
 outputText = Text(top, height=16, width=80)
 
@@ -97,12 +99,19 @@ def getGrammarRelations(tree):
 
 def filePath():
     """Method used to get a file path"""
-    inputText.delete('1.0', END)
+
     global FILENAME
-    FILENAME = filedialog.askopenfilename(initialdir="/", title="Select file",
+    top.update()
+
+    FILENAME = filedialog.askopenfilename(parent=top, initialdir="/", title="Select file",
                                           filetypes=(("ttl file", "*.ttl"), ("all files", "*.*")))
-    f = open(FILENAME, "r")
-    inputText.insert(END, f.read())
+
+    if len(FILENAME) > 0:
+        inputText.delete('1.0', END)
+        outputText.delete('1.0', END)
+        f = open(FILENAME, "r")
+        inputText.insert(END, f.read())
+        Btn.config(state="normal")
 
 
 def stanford_ne_2_ibo(tagged_sent):
@@ -427,12 +436,12 @@ def create_graph(entity_container, m_referenceContext):
 
 def run():
     """ Method used to run processing input file"""
+
     outputText.delete('1.0', END)
     g = rdflib.Graph()
     g.parse(data=inputText.get("1.0",END), format='n3')
 
     context, sentence = get_request_string(g)
-    g.remove((context, None, None))
 
     print('\nSent: ' + sentence + '\n')
 
@@ -448,6 +457,11 @@ def run():
         print('No entities found!')
 
 
+
+
+
+def threadButtonRun():
+    threading.Thread(target=run).start()
 
 
 def main():
@@ -473,11 +487,12 @@ def main():
     """ Method used to run program"""
 
     top.title("Knowledge Extraction")
-    top.geometry("590x660")
-    B = Button(top, text="Wczytaj plik", command=filePath, height=2, width=80)
-    B.place(x=10, y=550)
-    Btn = Button(top, text="Zatwierdź", command=run, height=2, width=80)
-    Btn.place(x=10, y=600)
+    top.geometry("590x680")
+    B = Button(top, text="Load .ttl file", command=filePath, height=2, width=80)
+    B.place(x=10, y=570)
+    global Btn
+    Btn = Button(top, text="Analyze", command=threadButtonRun, height=2, width=80, state="disabled")
+    Btn.place(x=10, y=620)
 
     scrollbar = Scrollbar(top)
     scrollbar.pack(side=RIGHT, fill=Y)
