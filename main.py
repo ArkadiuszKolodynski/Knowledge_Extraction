@@ -419,11 +419,11 @@ def main():
     """ Method used to run program"""
 
     top.title("Knowledge Extraction")
-    top.geometry("590x660")
+    top.geometry("590x680")
     B = Button(top, text="Load .ttl file", command=filePath, height=2, width=80)
-    B.place(x=10, y=550)
+    B.place(x=10, y=570)
     Btn = Button(top, text="Analyze", command=run, height=2, width=80)
-    Btn.place(x=10, y=600)
+    Btn.place(x=10, y=620)
 
     scrollbar = Scrollbar(top)
     scrollbar.pack(side=RIGHT, fill=Y)
