@@ -7,9 +7,10 @@ from nltk.chunk import conlltags2tree
 from SPARQLWrapper import SPARQLWrapper, JSON
 from tkinter import filedialog
 from tkinter import *
+from nltk.sem import relextract
+import collections
 
 nltk.download('averaged_perceptron_tagger')
-
 
 FILENAME = ""
 CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
@@ -120,6 +121,14 @@ def prepare_query(keyword):
     """.replace('$KEYWORD$', keyword)
 
 
+def prepare_query_relation(res1, res2):
+    return """
+        SELECT ?verb1 WHERE {
+            <%s> ?verb1 <%s>.
+        }
+    """ % (res1, res2)
+
+
 def execute_query(keyword):
     """Method used to execute query to dbpedia
     
@@ -190,6 +199,24 @@ def prepare_entities_container(entities, sentence):
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
+def getResourceUrl(entity):
+    results = execute_query(entity)
+    m_taIdentRef = ""
+    ifExists = False
+
+    if entity.endswith('s') and results['results']['bindings'] == []:
+        results = execute_query(entity[:-1])
+
+    if not results['results']['bindings']:
+        m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(entity.split(" "))
+
+    else:
+        for result in results['results']['bindings']:
+            if result != {} and result['result']['value']:
+                m_taIdentRef = result['result']['value']
+                ifExists = True
+
+    return (ifExists, m_taIdentRef)
 
 def create_graph(entity_container, m_referenceContext):
     """ Method used to create graph
@@ -233,21 +260,12 @@ def create_graph(entity_container, m_referenceContext):
             results = execute_query(entity[:-1])
 
         m_anchor = entity
+        (ifExists, m_taIdentRef) = getResourceUrl(entity)
 
         for occur in entity_container[entity]['indexes']:
             m_beginIndex = occur['beginIndex']
             m_endIndex = occur['endIndex']
             m_byte = contextUrlWithoutHash + ("#char=%d,%d" % (m_beginIndex, m_endIndex))
-            m_taIdentRef = ""
-
-            # TODO relations here
-            if not results['results']['bindings']:
-                m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(m_anchor.split(" "))
-
-            else:
-                for result in results['results']['bindings']:
-                    if result != {} and result['result']['value']:
-                        m_taIdentRef = result['result']['value']
 
             # assembly all
             byte = URIRef(m_byte)
@@ -267,8 +285,7 @@ def create_graph(entity_container, m_referenceContext):
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
     # graph output
-    print('Output graph \n')
-    print(g.serialize(format='turtle').decode('utf-8'))
+    #print(g.serialize(format='turtle').decode('utf-8'))
     outputText.insert(END, g.serialize(format='turtle').decode('utf-8'))
 
     return g
@@ -290,12 +307,115 @@ def run():
         entity_container = prepare_entities_container(entities, sentence)
         output_graph = create_graph(entity_container, context)
 
-        # https://rdflib.readthedocs.io/en/stable/intro_to_creating_rdf.html <= wynik wypisać do rdf'a
     else:
         print('No entities found!')
 
 
+# Function used for own dict
+
+from six.moves import html_entities
+def descape_entity(m, defs=html_entities.entitydefs):
+    """
+    Translate one entity to its ISO Latin value.
+    Inspired by example from effbot.org
+    """
+    try:
+        return defs[m.group(1)]
+
+    except KeyError:
+        return m.group(0)  # use as is
+
+def list2sym(lst):
+    """
+    Convert a list of strings into a canonical symbol.
+    :type lst: list
+    :return: a Unicode string without whitespace
+    :rtype: unicode
+    """
+    sym = _join(lst, '_', untag=True)
+    sym = sym.lower()
+    ENT = re.compile("&(\w+?);")
+    sym = ENT.sub(descape_entity, sym)
+    sym = sym.replace('.', '')
+    return sym
+
+def _join(lst, sep=' ', untag=False):
+    """
+    Join a list into a string, turning tags tuples into tag strings or just words.
+    :param untag: if ``True``, omit the tag from tagged input strings.
+    :type lst: list
+    :rtype: str
+    """
+    try:
+        return sep.join(lst)
+    except TypeError:
+        if untag:
+            return sep.join(tup[0] for tup in lst)
+        from nltk.tag import tuple2str
+
+        return sep.join(tuple2str(tup) for tup in lst)
+
+def rel2dict(pairs, window=5, trace=False):
+
+    result = []
+    for x in range(0, len(pairs)):
+        for y in range(0, len(pairs)):
+            if y == x:
+                continue
+
+            reldict = collections.defaultdict(str)
+
+            reldict['subjclass'] = pairs[x][1].label()
+            reldict['subjtext'] = _join(pairs[x][1].leaves())
+            reldict['subjsym'] = list2sym(pairs[x][1].leaves())
+            
+            if x < y:
+                reldict['predicate'] = _join(pairs[y][0])
+            else:
+                reldict['predicate'] = _join(pairs[x][0])
+
+            reldict['objclass'] = pairs[y][1].label()
+            reldict['objtext'] = _join(pairs[y][1].leaves())
+            reldict['objsym'] = list2sym(pairs[y][1].leaves())
+
+            if trace:
+                print(
+                    "(%s(%s, %s)"
+                    % (
+                        reldict['untagged_filler'],
+                        reldict['subjclass'],
+                        reldict['objclass'],
+                    )
+                )
+
+            result.append(reldict)
+    return result
+
+def getRelations(tree):
+    pairs = relextract.tree2semi_rel(tree)
+    reldicts = rel2dict(pairs, trace=False)
+    return reldicts
+
 def main():
+
+    '''
+    sentence = nltk.word_tokenize("Google CEO Sundar Pichai responded today to the firing of employee James Damore over his controversial memo on workplace diversity.")
+    #sentence = nltk.word_tokenize("Pope Francis in Chile at start of Latin America visit.")
+    #sentence = nltk.word_tokenize("'First Lady' apple pies in the Kruhek bakery in Melania Trumps hometown of Sevnica in Slovenia are selling like hot cakes.")
+    #sentence = nltk.word_tokenize("Shilpa Shetty and Raj Kundra, both 42, have been married for over eight years now. Viaan, 5, is the couple's only child. Shilpa's sister Shamita is also an actress.")
+    #sentence = nltk.word_tokenize("Mark works in JPMC in London every day")
+
+    st = StanfordNERTagger(CLASSIFIER_PATH, NER_PATH, encoding='utf-8')
+    ne_tagged_sent = st.tag(sentence)
+    ne_chunked_sent = stanford_ne_2_tree(ne_tagged_sent)
+
+    reldicts = getRelations(ne_chunked_sent)
+
+    for r in reldicts:
+        print("subject: %s, predicate: %s, obj: %s" % (r['subjtext'], r['predicate'], r['objtext']))
+    
+    '''
+
     """ Method used to run program"""
 
     top.title("Knowledge Extraction")
@@ -313,7 +433,6 @@ def main():
     w.pack()
     inputText.place(x=10, y=10)
     inputText.pack()
-
 
     inputText.config(yscrollcommand=scrollbar.set)
     scrollbar.config(command=inputText.yview)
