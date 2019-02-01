@@ -301,6 +301,8 @@ def create_graph(entity_container, m_referenceContext):
 
 def run():
     """ Method used to run processing input file"""
+
+    outputText.delete('1.0', END)
     g = rdflib.Graph()
     g.parse(data=inputText.get("1.0",END), format='n3')
 
@@ -406,6 +408,7 @@ def getRelations(tree):
 
 def threadButtonRun():
     threading.Thread(target=run).start()
+
 
 def main():
 
