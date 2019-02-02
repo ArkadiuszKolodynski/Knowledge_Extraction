@@ -106,7 +106,7 @@ def filePath():
     if len(FILENAME) > 0:
         inputText.delete('1.0', END)
         outputText.delete('1.0', END)
-        f = open(FILENAME, "r")
+        f = open(FILENAME, 'r', encoding='utf-8')
         inputText.insert(END, f.read())
         Btn.config(state="normal")
 
@@ -496,6 +496,7 @@ def create_graph(entity_container, m_referenceContext):
 def run():
     """ Method used to run processing input file"""
 
+    Btn.config(state="disable")
     outputText.delete('1.0', END)
     g = rdflib.Graph()
     g.parse(data=inputText.get("1.0",END), format='n3')
@@ -514,7 +515,7 @@ def run():
         outputText.insert(END, output_graph.serialize(format='turtle').decode('utf-8'))
     else:
         print('No entities found!')
-
+    Btn.config(state="normal")
 
 
 
