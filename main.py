@@ -287,7 +287,6 @@ def generateSmallerBlocks(target, others):
 
 # entities => [("label", "type", "url"), ("label", "type", "url")]
 def resolve_entity(target, others):
-
     query = "SELECT DISTINCT ?result WHERE {"
 
     #query += getBlock(target, others)
@@ -476,12 +475,6 @@ def prepare_entities_container(entities, sentence):
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
-def getMostSimilarEntity(proposed, entities):
-    print("get proposed")
-    print(proposed)
-    print(entities)
-
-
 def getResourceUrl(entity, dbotype):
     results = execute_query(entity, dbotype)
 
@@ -581,7 +574,13 @@ def create_graph(entity_container, m_referenceContext):
     for t in dbpediaResources:
         e = list(dbpediaResources)
         e.remove(t)
-        dbpediaResources[dbpediaResources.index(t)] = (t[0], t[1], resolve_entity(t, e))
+
+        result = (t[0], t[1], resolve_entity(t, e))
+
+        if not result[2] and t[0].endswith('s'):
+            result = (t[0], t[1], resolve_entity((t[0][:-1], t[1], t[2]), e))
+
+        dbpediaResources[dbpediaResources.index(t)] = result
 
     # let's do some rock'n'roll
     for entity in entity_container:
