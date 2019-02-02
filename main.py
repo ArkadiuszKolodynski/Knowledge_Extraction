@@ -174,35 +174,6 @@ def get_entities(sentence):
 
     return (named_entities, grammarRelations)
 
-
-def prepare_query(keyword):
-    """ Method used to prepare query to dbpedia
-
-           Parameters
-           ----------
-           keyword : str
-               keyword to search in dbpedia
-               
-           Returns
-           -------
-           query : string
-               prepared query
-           """
-    return """
-        SELECT ?result WHERE {
-            {
-                ?result rdfs:label "$KEYWORD$"@en ;
-                a owl:Thing .       
-            }
-            UNION
-            {
-                ?altName rdfs:label "$KEYWORD$"@en ;
-                dbo:wikiPageRedirects ?result .
-            }
-        }
-    """.replace('$KEYWORD$', keyword)
-
-
 def prepare_query_relation(res1, res2):
     return """
         SELECT ?verb1 WHERE {
@@ -211,21 +182,32 @@ def prepare_query_relation(res1, res2):
     """ % (res1, res2)
 
 
-def execute_query(keyword):
-    """Method used to execute query to dbpedia
+def execute_query(label, dbotype):
     
-           Parameters
-           ----------
-           keyword : str
-               keyword to search in dbpedia
-               
-           Returns
-           -------
-           result : dict
-               result from query
-           """
+    query = """
+        SELECT DISTINCT ?result WHERE {
+            {
+                ?result rdfs:label "$KEYWORD$"@en ;
+                a owl:Thing, dbo:$TYPE$ .  
+            }
+            UNION
+            {
+                ?result rdfs:label ?label ;
+                a owl:Thing, dbo:$TYPE$ .   
+
+                ?altName rdfs:label ?label2 .
+                ?altName dbo:artist ?result ;
+                a owl:Thing .     
+ 
+                filter strStarts(?label2, "$KEYWORD$")  
+                filter (lang(?label2) = 'en')
+            }
+        }
+        LIMIT 1
+    """.replace('$KEYWORD$', label).replace('$TYPE$', dbotype)
+
     sparql = SPARQLWrapper('http://dbpedia.org/sparql')
-    sparql.setQuery(prepare_query(keyword))
+    sparql.setQuery(query)
     sparql.setReturnFormat(JSON)
 
     return sparql.query().convert()
@@ -258,11 +240,8 @@ def get_request_string(graph):
             return s, o
 
 def getBytesToRelation(label, dbotype):
-    if dbotype == "ORGANIZATION":
-        dbotype = "Organisation"
-
     query = """
-        SELECT ?result WHERE {
+        SELECT DISTINCT ?result WHERE {
             ?result rdfs:label ?label ;
             a owl:Thing, dbo:%s .     
 
@@ -270,7 +249,7 @@ def getBytesToRelation(label, dbotype):
             filter (lang(?label) = 'en')
         }
         LIMIT 3
-    """ % (dbotype.title(), label)
+    """ % (dbotype, label)
 
     print(query)
 
@@ -288,6 +267,43 @@ def getBytesToRelation(label, dbotype):
 
     return resources
 
+'''
+        SELECT ?result1, ?verb1 WHERE {
+            ?result1 ?verb1 ?result2.
+
+            ?result1 rdfs:label ?label1 ;
+            a owl:Thing, dbo:Person .
+
+            ?result2 rdfs:label ?label2 ;
+            a owl:Thing, dbo:Place .
+
+            filter strStarts(?label1, "Donald Trump")
+            filter (lang(?label1) = 'en')
+
+            filter strStarts(?label2, "New York")
+            filter (lang(?label2) = 'en')
+        }
+'''
+
+def getRelations2(ref1, label2, dbotype2):
+    query = """
+        SELECT ?verb1 WHERE {
+            <%s> ?verb1 ?result.
+
+            ?result rdfs:label ?label ;
+            a owl:Thing, dbo:%s .
+
+            filter strStarts(?label, "%s")
+            filter (lang(?label) = 'en')
+        }
+    """ % (ref1, dbotype2, label2)
+
+    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+
+    results = sparql.query().convert()
+    return results
 
 def prepare_entities_container(entities, sentence):
     """Method used to prepare entities container
@@ -310,35 +326,44 @@ def prepare_entities_container(entities, sentence):
         sentence = sentence.replace(entity, '', 1)
         indexes_dict = {'beginIndex': index + offset, 'endIndex': index + offset + len(entity)}
 
+        if dbotype == "ORGANIZATION":
+            dbotype = "Organisation"
+
         if entity in entity_container:
             entity_container[entity]['indexes'].append(indexes_dict)
         else:
-            entity_container.update({entity: {'indexes': [indexes_dict], 'type': dbotype }})
+            entity_container.update({entity: {'indexes': [indexes_dict], 'type': dbotype.title() }})
         offset += len(entity)
 
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
-def getResourceUrl(entity):
-    results = execute_query(entity)
-    m_taIdentRef = ""
-    ifExists = False
+def getMostSimilarEntity(proposed, entities):
+    print("get proposed")
+    print(proposed)
+    print(entities)
+
+
+def getResourceUrl(entity, dbotype):
+    results = execute_query(entity, dbotype)
 
     if entity.endswith('s') and results['results']['bindings'] == []:
-        results = execute_query(entity[:-1])
+        results = execute_query(entity[:-1], dbotype)
+
+    ifExists = False
 
     if not results['results']['bindings']:
         m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(entity.split(" "))
-
     else:
+        ifExists = True
+
         for result in results['results']['bindings']:
             if result != {} and result['result']['value']:
                 m_taIdentRef = result['result']['value']
-                ifExists = True
-
+                
     return (ifExists, m_taIdentRef)
 
-def clearQueriedRelation(results):
+def clearQueriedRelation(results, dbotype1, dbotype2):
     predicates = []
     url = "http://dbpedia.org/ontology/"
 
@@ -347,7 +372,10 @@ def clearQueriedRelation(results):
                 value = bindings[verb]['value']
                 id = value.rsplit('/', 1)[-1]
 
-                if id == "wikiPageWikiLink" or id == "seeAlso":
+                if id == "wikiPageWikiLink" or id == "rdf-schema#seeAlso":
+                    if dbotype1 == "Person" and dbotype2 == "Person":
+                        predicates.append("relation")
+
                     continue
 
                 predicates.append(id)
@@ -359,7 +387,7 @@ def clearQueriedRelation(results):
                 if id == "occupation":
                     predicates.append("employer")
 
-    return [ url + t for t in predicates]
+    return list(set([ url + t for t in predicates]))
 
 def create_graph(entity_container, m_referenceContext):
     """ Method used to create graph
@@ -410,7 +438,7 @@ def create_graph(entity_container, m_referenceContext):
     # let's do some rock'n'roll
     for entity in entity_container:
         m_anchor = entity
-        (ifExists, m_taIdentRef) = getResourceUrl(entity)
+        (ifExists, m_taIdentRef) = getResourceUrl(entity, entity_container[entity]['type'])
         relations = []
 
         if ifExists:
@@ -418,12 +446,13 @@ def create_graph(entity_container, m_referenceContext):
                 if entity == entity2:
                     continue
 
-                (ifExists2, m_taIdentRef2) = getResourceUrl(entity2)
+                (ifExists2, m_taIdentRef2) = getResourceUrl(entity2, entity_container[entity2]['type'])
                     
                 if ifExists2:
-                    queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
+                    #queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
+                    queriedRelation = getRelations2(m_taIdentRef, entity2, entity_container[entity2]['type'])
                     
-                    results = clearQueriedRelation(queriedRelation)
+                    results = clearQueriedRelation(queriedRelation, entity_container[entity]['type'], entity_container[entity2]['type'])
 
                     if results != []:
                         relations.append((m_taIdentRef2, results))
@@ -467,12 +496,12 @@ def create_graph(entity_container, m_referenceContext):
 
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
+
         print(relations)
 
         #realtions
         for (res2Ref, rels) in relations:
             for url in rels:
-                print("url", url)
                 relByte = BNode()
 
                 g.add( (relByte, typeUri, RDF.Statement ) )

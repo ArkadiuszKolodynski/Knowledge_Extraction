@@ -10,5 +10,5 @@
         a                     nif:RFC5147String , nif:String , nif:Context ;
         nif:beginIndex        "0"^^xsd:nonNegativeInteger ;
         nif:endIndex          "118"^^xsd:nonNegativeInteger ;
-        nif:isString          "At Poznan University of Technology a lot of nice people are working, especially Adam Malysz who is teaching ski jumps."^^xsd:string .
+        nif:isString          "At Poznań University of Technology a lot of nice people are working, especially Adam Małysz who is teaching ski jumps."^^xsd:string .
 
