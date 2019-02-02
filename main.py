@@ -85,9 +85,6 @@ def rel2dict(pairs):
             obj = ' '.join(c[0] for c in pairs[y][1].leaves())
 
             result.append((subject, predicate, obj))
-
-    print(result)
-
     return result
 
 def getGrammarRelations(tree):
@@ -172,11 +169,10 @@ def get_entities(sentence):
             entity_name = ' '.join(c[0] for c in tagged_tree.leaves())
             entity_type = tagged_tree.label()
             named_entities.append((entity_name, entity_type))
-    print(named_entities, '\n')
 
     grammarRelations = getGrammarRelations(ne_chunked_sent)
 
-    return ([entity[0] for entity in named_entities], grammarRelations)
+    return (named_entities, grammarRelations)
 
 
 def prepare_query(keyword):
@@ -261,6 +257,37 @@ def get_request_string(graph):
         if p == predicate:
             return s, o
 
+def getBytesToRelation(label, dbotype):
+    if dbotype == "ORGANIZATION":
+        dbotype = "Organisation"
+
+    query = """
+        SELECT ?result WHERE {
+            ?result rdfs:label ?label ;
+            a owl:Thing, dbo:%s .     
+
+            filter strStarts(?label, "%s")  
+            filter (lang(?label) = 'en')
+        }
+        LIMIT 3
+    """ % (dbotype.title(), label)
+
+    print(query)
+
+    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+
+    results = sparql.query().convert()
+    resources = []
+
+    for bindings in results['results']['bindings']:
+        for result in bindings:
+                value = bindings[result]['value']
+                resources.append(value)
+
+    return resources
+
 
 def prepare_entities_container(entities, sentence):
     """Method used to prepare entities container
@@ -278,7 +305,7 @@ def prepare_entities_container(entities, sentence):
 
     entity_container = {}
     offset = 0
-    for entity in entities:
+    for (entity, dbotype) in entities:
         index = sentence.find(entity)
         sentence = sentence.replace(entity, '', 1)
         indexes_dict = {'beginIndex': index + offset, 'endIndex': index + offset + len(entity)}
@@ -286,7 +313,7 @@ def prepare_entities_container(entities, sentence):
         if entity in entity_container:
             entity_container[entity]['indexes'].append(indexes_dict)
         else:
-            entity_container.update({entity: {'indexes': [indexes_dict]}})
+            entity_container.update({entity: {'indexes': [indexes_dict], 'type': dbotype }})
         offset += len(entity)
 
     print('Found entities:', entities, '\n', entity_container, '\n')
@@ -311,7 +338,7 @@ def getResourceUrl(entity):
 
     return (ifExists, m_taIdentRef)
 
-def clearQueriedRelation(entity1, entity2, results):
+def clearQueriedRelation(results):
     predicates = []
     url = "http://dbpedia.org/ontology/"
 
@@ -319,9 +346,8 @@ def clearQueriedRelation(entity1, entity2, results):
         for verb in bindings:
                 value = bindings[verb]['value']
                 id = value.rsplit('/', 1)[-1]
-                print(id)
 
-                if id == "wikiPageWikiLink":
+                if id == "wikiPageWikiLink" or id == "seeAlso":
                     continue
 
                 predicates.append(id)
@@ -333,7 +359,7 @@ def clearQueriedRelation(entity1, entity2, results):
                 if id == "occupation":
                     predicates.append("employer")
 
-    return (entity1, entity2, [ url + t for t in predicates])
+    return [ url + t for t in predicates]
 
 def create_graph(entity_container, m_referenceContext):
     """ Method used to create graph
@@ -374,12 +400,18 @@ def create_graph(entity_container, m_referenceContext):
 
     k = m_referenceContext.rfind("#")
     contextUrlWithoutHash = m_referenceContext[:k]
+    
+    '''
+    cached = {}
+    for entity in entity_container:
+        cached[entity] = getBytesToRelation(entity, entity_container[entity]['type'])
+    '''
 
     # let's do some rock'n'roll
     for entity in entity_container:
         m_anchor = entity
         (ifExists, m_taIdentRef) = getResourceUrl(entity)
-        relations = (None, None, [])
+        relations = []
 
         if ifExists:
             for entity2 in entity_container:
@@ -390,7 +422,28 @@ def create_graph(entity_container, m_referenceContext):
                     
                 if ifExists2:
                     queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
-                    relations = clearQueriedRelation(m_taIdentRef, m_taIdentRef2, queriedRelation)
+                    
+                    results = clearQueriedRelation(queriedRelation)
+
+                    if results != []:
+                        relations.append((m_taIdentRef2, results))
+
+                    '''
+                    for rel1 in cached[entity]:
+                        for rel2 in cached[entity2]:
+                            i += 1
+
+                            if rel1 == rel2 or rel1 == m_taIdentRef or rel2 == m_taIdentRef2:
+                                continue
+
+                            print("Querring...")
+
+                            queriedRelation = execute_query_relation(prepare_query_relation(rel1, rel2))
+                            results = clearQueriedRelation(m_taIdentRef, m_taIdentRef2, queriedRelation)
+                            if results != []:
+                                relations[2] += results
+
+                    '''
 
         for occur in entity_container[entity]['indexes']:
             m_beginIndex = occur['beginIndex']
@@ -414,8 +467,12 @@ def create_graph(entity_container, m_referenceContext):
 
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
-            #realtions
-            for relation in range(0, len(relations[2])):
+        print(relations)
+
+        #realtions
+        for (res2Ref, rels) in relations:
+            for url in rels:
+                print("url", url)
                 relByte = BNode()
 
                 g.add( (relByte, typeUri, RDF.Statement ) )
@@ -427,9 +484,9 @@ def create_graph(entity_container, m_referenceContext):
                 g.add( (targetByte, typeUri, oa.SpecificResource ) )
                 g.add( (targetByte, oa.hasSource, URIRef(m_referenceContext) ) )
 
-                g.add( (relByte, RDF.subject, URIRef(relations[0]) ) )
-                g.add( (relByte, RDF.object, URIRef(relations[1]) ) )
-                g.add( (relByte, RDF.predicate, URIRef(relations[2][relation]) ) )
+                g.add( (relByte, RDF.subject, URIRef(m_taIdentRef) ) )
+                g.add( (relByte, RDF.object, URIRef(res2Ref) ) )
+                g.add( (relByte, RDF.predicate, URIRef(url) ) )
                 
     # graph output
     #print(g.serialize(format='turtle').decode('utf-8'))

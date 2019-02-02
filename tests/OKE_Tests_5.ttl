@@ -1,0 +1,12 @@
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#> .
+@prefix dbpedia: <http://dbpedia.org/resource/> .
+@prefix itsrdf: <http://www.w3.org/2005/11/its/rdf#> .
+
+
+
+<http://example.com/example-jb5#char=0,203>
+        a                     nif:RFC5147String , nif:String , nif:Context ;
+        nif:beginIndex        "0"^^xsd:nonNegativeInteger ;
+        nif:endIndex          "203"^^xsd:nonNegativeInteger ;
+        nif:isString          "The Googleplex is the corporate headquarters complex of Google and its parent company Alphabet Inc.. It is located at 1600 Amphitheatre Parkway in Mountain View, California, United States, near San Jose."^^xsd:string .

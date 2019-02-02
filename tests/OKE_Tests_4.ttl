@@ -1,0 +1,13 @@
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix nif: <http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#> .
+@prefix dbpedia: <http://dbpedia.org/resource/> .
+@prefix itsrdf: <http://www.w3.org/2005/11/its/rdf#> .
+
+
+
+<http://example.com/example-jb4#char=0,146>
+        a                     nif:RFC5147String , nif:String , nif:Context ;
+        nif:beginIndex        "0"^^xsd:nonNegativeInteger ;
+        nif:endIndex          "146"^^xsd:nonNegativeInteger ;
+        nif:isString          "Elvis married Priscilla in 1967 at the Aladdin Hotel in Las Vegas, Nevada. They had a daughter called Lisa and she was born in Memphis, Tennessee."^^xsd:string .
+
