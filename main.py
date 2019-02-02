@@ -181,6 +181,134 @@ def prepare_query_relation(res1, res2):
         }
     """ % (res1, res2)
 
+# target => ("label", "type", ?)
+# others => [("label", "type", "url"), ("label", "type", "url")]
+def getBlock(target, others):
+
+    # ID, LABEL, TYPE
+    # ID => "entity_name" (without question mark)
+    unknown_entity_template = """
+        ?$ID$ rdfs:label ?label_$ID$ .
+        ?$ID$ a owl:Thing, dbo:$TYPE$ .  
+
+        filter strStarts(?label_$ID$, "$LABEL$")  
+        filter (lang(?label_$ID$) = 'en')
+    """
+
+    # LEFT, REL_ID, RIGHT
+    # LEFT, RIGHT => "?ent_$ID$" or "<$URL$>"
+    raw_relation_template = """
+       $LEFT$ ?rel_$REL_ID$ $RIGHT$ .
+    """
+
+    entire_query = ""
+
+    print(target)
+    print(others)
+
+    # result template
+    entire_query += unknown_entity_template.replace('$ID$', "result").replace('$TYPE$', target[1]).replace('$LABEL$', target[0])
+
+    # add unknowns
+    for ent_i, (label, dbotype, url) in enumerate(others):
+        if not url:
+            entire_query += unknown_entity_template.replace('$ID$', "ent_%s" % ent_i).replace('$TYPE$', dbotype).replace('$LABEL$', label)
+
+    # add relations
+    rel_i = 1
+
+    # target relations
+    for ent_i, (label, dbotype, url) in enumerate(others):
+        if not url:
+            entire_query += raw_relation_template.replace('$LEFT$', "?result").replace('$REL_ID$', str(ent_i)).replace('$RIGHT$', "?ent_%s" % ent_i)
+        else:
+            entire_query += raw_relation_template.replace('$LEFT$', "?result").replace('$REL_ID$', str(ent_i)).replace('$RIGHT$', "<%s>" % url)
+
+        rel_i += 1
+
+    # multi others relations
+    for left_i in range(len(others)):
+        (label_left, dbotype_left, url_left) = others[left_i]
+
+        for right_i in range(left_i + 1, len(others)):
+            (label_right, dbotype_right, url_right) = others[right_i]
+
+            part = raw_relation_template.replace('$REL_ID$', str(rel_i))
+
+            if url_left:
+                part = part.replace('$LEFT$', "<%s>" % url_left)
+            else:
+                part = part.replace('$LEFT$', "?ent_%s" % left_i)
+
+            if url_right:
+                part = part.replace('$RIGHT$', "<%s>" % url_right)
+            else:
+                part = part.replace('$RIGHT$', "?ent_%s" % right_i)
+
+            entire_query += part
+            rel_i += 1
+
+    return entire_query
+
+# target => ("label", "type", ?)
+def first_query(target):
+    query = """
+        { 
+            ?result rdfs:label "$LABEL$"@en ;
+            a owl:Thing, dbo:$TYPE$ .  
+        }
+    """
+
+    return query.replace('$LABEL$', target[0]).replace('$TYPE$', target[1])
+
+# target => ("label", "type", ?)
+def fallback_query(target):
+    query = """
+        UNION { 
+            ?altName rdfs:label "$LABEL$"@en ;	
+            dbo:wikiPageRedirects ?result .	
+        }
+    """
+
+    return query.replace('$LABEL$', target[0]).replace('$TYPE$', target[1])
+
+def generateSmallerBlocks(target, others):
+    query = ""
+
+    if not others:
+        return query
+
+    for id in range(0, len(others)):
+        query += "UNION {"
+        query += getBlock(target, [others[id]])
+        query += "}"
+
+    return query
+
+# entities => [("label", "type", "url"), ("label", "type", "url")]
+def resolve_entity(target, others):
+
+    query = "SELECT DISTINCT ?result WHERE {"
+
+    #query += getBlock(target, others)
+    query += first_query(target)
+    query += generateSmallerBlocks(target, others)
+    query += fallback_query(target)
+
+    query += "} LIMIT 1"
+
+    # push
+    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
+    sparql.setQuery(query)
+    sparql.setReturnFormat(JSON)
+
+    results = sparql.query().convert()
+
+    if results['results']['bindings']:
+        return results['results']['bindings'][0]['result']['value']
+    else:
+        return ""
+
 
 def execute_query(label, dbotype):
     
@@ -223,7 +351,6 @@ def execute_query_relation(query):
     sparql.setReturnFormat(JSON)
 
     return sparql.query().convert()
-
 
 def get_request_string(graph):
     """Method used to get request string
@@ -290,18 +417,24 @@ def getBytesToRelation(label, dbotype):
         }
 '''
 
-def getRelations2(ref1, label2, dbotype2):
+def getRelations(ent1, ent2):
     query = """
-        SELECT ?verb1 WHERE {
-            <%s> ?verb1 ?result.
+        SELECT DISTINCT ?verb1 WHERE {
+            {
+                <$REF_LEFT$> ?verb1 <$REF_RIGHT$>.
+            }
+            UNION
+            {
+                <$REF_LEFT$> ?verb1 ?result.
 
-            ?result rdfs:label ?label ;
-            a owl:Thing, dbo:%s .
+                ?result rdfs:label ?label ;
+                a owl:Thing, dbo:$TYPE_RIGHT$ .
 
-            filter strStarts(?label, "%s")
-            filter (lang(?label) = 'en')
+                filter strStarts(?label, "$LABEL_RIGHT$")
+                filter (lang(?label) = 'en')
+            }
         }
-    """ % (ref1, dbotype2, label2)
+    """.replace('$REF_LEFT$', ent1[2]).replace('$REF_RIGHT$', ent2[2]).replace('$TYPE_RIGHT$', ent2[1]).replace('$LABEL_RIGHT$', ent2[0])
 
     sparql = SPARQLWrapper('http://dbpedia.org/sparql')
     sparql.setQuery(query)
@@ -439,11 +572,24 @@ def create_graph(entity_container, m_referenceContext):
     for entity in entity_container:
         cached[entity] = getBytesToRelation(entity, entity_container[entity]['type'])
     '''
+    
+    dbpediaResources = []
+
+    for entity in entity_container:
+        dbpediaResources.append((entity, entity_container[entity]['type'], ""))
+
+    for t in dbpediaResources:
+        e = list(dbpediaResources)
+        e.remove(t)
+        dbpediaResources[dbpediaResources.index(t)] = (t[0], t[1], resolve_entity(t, e))
 
     # let's do some rock'n'roll
     for entity in entity_container:
         m_anchor = entity
-        (ifExists, m_taIdentRef) = getResourceUrl(entity, entity_container[entity]['type'])
+        resource1 = dbpediaResources[[x[0] for x in dbpediaResources].index(entity)]
+        m_taIdentRef = resource1[2]
+        ifExists = bool(m_taIdentRef)
+
         relations = []
 
         if ifExists:
@@ -451,33 +597,21 @@ def create_graph(entity_container, m_referenceContext):
                 if entity == entity2:
                     continue
 
-                (ifExists2, m_taIdentRef2) = getResourceUrl(entity2, entity_container[entity2]['type'])
+                resource2 = dbpediaResources[[x[0] for x in dbpediaResources].index(entity2)]
+                m_taIdentRef2 = resource2[2]
+                ifExists2 = bool(m_taIdentRef2)
                     
                 if ifExists2:
                     #queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
-                    queriedRelation = getRelations2(m_taIdentRef, entity2, entity_container[entity2]['type'])
+                    queriedRelation = getRelations(resource1, resource2)
                     
                     results = clearQueriedRelation(queriedRelation, entity_container[entity]['type'], entity_container[entity2]['type'])
 
                     if results != []:
                         relations.append((m_taIdentRef2, results))
 
-                    '''
-                    for rel1 in cached[entity]:
-                        for rel2 in cached[entity2]:
-                            i += 1
-
-                            if rel1 == rel2 or rel1 == m_taIdentRef or rel2 == m_taIdentRef2:
-                                continue
-
-                            print("Querring...")
-
-                            queriedRelation = execute_query_relation(prepare_query_relation(rel1, rel2))
-                            results = clearQueriedRelation(m_taIdentRef, m_taIdentRef2, queriedRelation)
-                            if results != []:
-                                relations[2] += results
-
-                    '''
+        else:
+            m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(entity.split(" "))
 
         for occur in entity_container[entity]['indexes']:
             m_beginIndex = occur['beginIndex']
