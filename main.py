@@ -190,6 +190,11 @@ def execute_query(label, dbotype):
                 ?result rdfs:label "$KEYWORD$"@en ;
                 a owl:Thing, dbo:$TYPE$ .  
             }
+            UNION	
+            {	
+                ?altName rdfs:label "$KEYWORD$"@en ;	
+                dbo:wikiPageRedirects ?result .	
+            }
             UNION
             {
                 ?result rdfs:label ?label ;
