@@ -10,6 +10,9 @@ from tkinter import *
 from nltk.sem import relextract
 import collections
 import threading
+from nltk.stem import PorterStemmer
+from nltk.stem import LancasterStemmer
+import re
 
 nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
@@ -87,10 +90,43 @@ def rel2dict(pairs):
             result.append((subject, predicate, obj))
     return result
 
-def getGrammarRelations(tree):
+def getGrammarRelations(named_entities, tree):
     pairs = relextract.tree2semi_rel(tree)
     reldicts = rel2dict(pairs)
-    return reldicts
+
+    rules = [
+        # TYPE1, TYPE2, [keywords], ONTOLOGY, ISMIRRORED
+        ('ORGANIZATION', 'PERSON', ['work'], 'employer', False),
+        ('PERSON', 'PERSON', ['sister'], 'sibling', True),
+    ]
+
+    porter = PorterStemmer()
+
+    relations = {}
+
+    for rels in reldicts:
+        dbotype1 = [ner[1] for ner in named_entities if ner[0] == rels[0]][0]
+        dbotype2 = [ner[1] for ner in named_entities if ner[0] == rels[2]][0]
+        space = [porter.stem(word[0]) for word in rels[1]]
+
+        proposals = [(rule[2], rule[3], rule[4]) for rule in rules if rule[0] == dbotype1 and rule[1] == dbotype2]
+
+        for (words, newtype, mirror) in proposals:
+            isIn = bool(list(set(space) & set(words)))
+
+            if isIn:
+                if rels[0] not in relations:
+                    relations[rels[0]] = []
+
+                relations[rels[0]].append( (rels[2], ["http://dbpedia.org/ontology/" + newtype]) ) 
+
+                if mirror:
+                    if rels[2] not in relations:
+                        relations[rels[2]] = []
+
+                    relations[rels[2]].append( (rels[0], ["http://dbpedia.org/ontology/" + newtype]) ) 
+
+    return relations
 
 # // Function used for own relation extractions
 
@@ -142,20 +178,11 @@ def stanford_ne_2_tree(ne_tagged_sent):
     return ne_tree
 
 
-def get_entities(sentence):
-    """Method used to get entities from sentence
+def get_entities(sent):
+    sent = re.sub(r"(\.\.)", '.', sent)
 
-        Parameters
-        ----------
-        sentence : str
-            phrase with sentence
-      
-        Returns
-        -------
-        named_entities : list
-            list of named entities
-        """
-    sentence = nltk.word_tokenize(sentence)
+    # NER
+    sentence = nltk.word_tokenize(sent)
 
     st = StanfordNERTagger(CLASSIFIER_PATH, NER_PATH, encoding='utf-8')
     ne_tagged_sent = st.tag(sentence)
@@ -170,16 +197,10 @@ def get_entities(sentence):
             entity_type = tagged_tree.label()
             named_entities.append((entity_name, entity_type))
 
-    grammarRelations = getGrammarRelations(ne_chunked_sent)
+    # Grammar Relations
+    grammarRelations = getGrammarRelations(named_entities, ne_chunked_sent)    
 
     return (named_entities, grammarRelations)
-
-def prepare_query_relation(res1, res2):
-    return """
-        SELECT ?verb1 WHERE {
-            <%s> ?verb1 <%s>.
-        }
-    """ % (res1, res2)
 
 # target => ("label", "type", ?)
 # others => [("label", "type", "url"), ("label", "type", "url")]
@@ -202,9 +223,6 @@ def getBlock(target, others):
     """
 
     entire_query = ""
-
-    print(target)
-    print(others)
 
     # result template
     entire_query += unknown_entity_template.replace('$ID$', "result").replace('$TYPE$', target[1]).replace('$LABEL$', target[0])
@@ -289,7 +307,6 @@ def generateSmallerBlocks(target, others):
 def resolve_entity(target, others):
     query = "SELECT DISTINCT ?result WHERE {"
 
-    #query += getBlock(target, others)
     query += first_query(target)
     query += generateSmallerBlocks(target, others)
     query += fallback_query(target)
@@ -307,49 +324,6 @@ def resolve_entity(target, others):
         return results['results']['bindings'][0]['result']['value']
     else:
         return ""
-
-
-def execute_query(label, dbotype):
-    
-    query = """
-        SELECT DISTINCT ?result WHERE {
-            {
-                ?result rdfs:label "$KEYWORD$"@en ;
-                a owl:Thing, dbo:$TYPE$ .  
-            }
-            UNION	
-            {	
-                ?altName rdfs:label "$KEYWORD$"@en ;	
-                dbo:wikiPageRedirects ?result .	
-            }
-            UNION
-            {
-                ?result rdfs:label ?label ;
-                a owl:Thing, dbo:$TYPE$ .   
-
-                ?altName rdfs:label ?label2 .
-                ?altName dbo:artist ?result ;
-                a owl:Thing .     
- 
-                filter strStarts(?label2, "$KEYWORD$")  
-                filter (lang(?label2) = 'en')
-            }
-        }
-        LIMIT 1
-    """.replace('$KEYWORD$', label).replace('$TYPE$', dbotype)
-
-    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
-    sparql.setQuery(query)
-    sparql.setReturnFormat(JSON)
-
-    return sparql.query().convert()
-
-def execute_query_relation(query):
-    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
-    sparql.setQuery(query)
-    sparql.setReturnFormat(JSON)
-
-    return sparql.query().convert()
 
 def get_request_string(graph):
     """Method used to get request string
@@ -369,52 +343,6 @@ def get_request_string(graph):
     for s, p, o in graph:
         if p == predicate:
             return s, o
-
-def getBytesToRelation(label, dbotype):
-    query = """
-        SELECT DISTINCT ?result WHERE {
-            ?result rdfs:label ?label ;
-            a owl:Thing, dbo:%s .     
-
-            filter strStarts(?label, "%s")  
-            filter (lang(?label) = 'en')
-        }
-        LIMIT 3
-    """ % (dbotype, label)
-
-    print(query)
-
-    sparql = SPARQLWrapper('http://dbpedia.org/sparql')
-    sparql.setQuery(query)
-    sparql.setReturnFormat(JSON)
-
-    results = sparql.query().convert()
-    resources = []
-
-    for bindings in results['results']['bindings']:
-        for result in bindings:
-                value = bindings[result]['value']
-                resources.append(value)
-
-    return resources
-
-'''
-        SELECT ?result1, ?verb1 WHERE {
-            ?result1 ?verb1 ?result2.
-
-            ?result1 rdfs:label ?label1 ;
-            a owl:Thing, dbo:Person .
-
-            ?result2 rdfs:label ?label2 ;
-            a owl:Thing, dbo:Place .
-
-            filter strStarts(?label1, "Donald Trump")
-            filter (lang(?label1) = 'en')
-
-            filter strStarts(?label2, "New York")
-            filter (lang(?label2) = 'en')
-        }
-'''
 
 def getRelations(ent1, ent2):
     query = """
@@ -475,25 +403,6 @@ def prepare_entities_container(entities, sentence):
     print('Found entities:', entities, '\n', entity_container, '\n')
     return entity_container
 
-def getResourceUrl(entity, dbotype):
-    results = execute_query(entity, dbotype)
-
-    if entity.endswith('s') and results['results']['bindings'] == []:
-        results = execute_query(entity[:-1], dbotype)
-
-    ifExists = False
-
-    if not results['results']['bindings']:
-        m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(entity.split(" "))
-    else:
-        ifExists = True
-
-        for result in results['results']['bindings']:
-            if result != {} and result['result']['value']:
-                m_taIdentRef = result['result']['value']
-                
-    return (ifExists, m_taIdentRef)
-
 def clearQueriedRelation(results, dbotype1, dbotype2):
     predicates = []
     url = "http://dbpedia.org/ontology/"
@@ -520,7 +429,7 @@ def clearQueriedRelation(results, dbotype1, dbotype2):
 
     return list(set([ url + t for t in predicates]))
 
-def create_graph(entity_container, m_referenceContext):
+def create_graph(entity_container, m_referenceContext, grammarRelations):
     """ Method used to create graph
                       Parameters
                       ----------
@@ -559,13 +468,7 @@ def create_graph(entity_container, m_referenceContext):
 
     k = m_referenceContext.rfind("#")
     contextUrlWithoutHash = m_referenceContext[:k]
-    
-    '''
-    cached = {}
-    for entity in entity_container:
-        cached[entity] = getBytesToRelation(entity, entity_container[entity]['type'])
-    '''
-    
+        
     dbpediaResources = []
 
     for entity in entity_container:
@@ -580,7 +483,23 @@ def create_graph(entity_container, m_referenceContext):
         if not result[2] and t[0].endswith('s'):
             result = (t[0], t[1], resolve_entity((t[0][:-1], t[1], t[2]), e))
 
+        print(result)
+
         dbpediaResources[dbpediaResources.index(t)] = result
+
+    for t in dbpediaResources:
+        if not t[2]:
+            dbpediaResources[dbpediaResources.index(t)] = (t[0], t[1], 'http://aksw.org/notInWiki/' + "_".join(t[0].split(" ")))
+    
+    # grammar relations
+    extendedGrammarRelations = {}
+    for entity in grammarRelations:
+        for rel in grammarRelations[entity]:
+            if entity not in extendedGrammarRelations:
+                extendedGrammarRelations[entity] = []
+
+            # (entity_ref2, ['ontology/ref'])
+            extendedGrammarRelations[entity].append( (dbpediaResources[ [x[0] for x in dbpediaResources].index(rel[0]) ][2], rel[1]) )
 
     # let's do some rock'n'roll
     for entity in entity_container:
@@ -601,16 +520,13 @@ def create_graph(entity_container, m_referenceContext):
                 ifExists2 = bool(m_taIdentRef2)
                     
                 if ifExists2:
-                    #queriedRelation = execute_query_relation(prepare_query_relation(m_taIdentRef, m_taIdentRef2))
                     queriedRelation = getRelations(resource1, resource2)
                     
                     results = clearQueriedRelation(queriedRelation, entity_container[entity]['type'], entity_container[entity2]['type'])
 
                     if results != []:
-                        relations.append((m_taIdentRef2, results))
+                        relations.append((m_taIdentRef2, results))           
 
-        else:
-            m_taIdentRef = 'http://aksw.org/notInWiki/' + "_".join(entity.split(" "))
 
         for occur in entity_container[entity]['indexes']:
             m_beginIndex = occur['beginIndex']
@@ -635,7 +551,8 @@ def create_graph(entity_container, m_referenceContext):
             g.add( (byte, itsrdf.taIdentRef, URIRef(m_taIdentRef) ) )
 
 
-        print(relations)
+        if m_anchor in extendedGrammarRelations:
+            relations += extendedGrammarRelations[m_anchor]
 
         #realtions
         for (res2Ref, rels) in relations:
@@ -655,8 +572,7 @@ def create_graph(entity_container, m_referenceContext):
                 g.add( (relByte, RDF.object, URIRef(res2Ref) ) )
                 g.add( (relByte, RDF.predicate, URIRef(url) ) )
                 
-    # graph output
-    #print(g.serialize(format='turtle').decode('utf-8'))
+    print("Graph done.")
 
     return g
 
@@ -678,7 +594,7 @@ def run():
 
     if entities:
         entity_container = prepare_entities_container(entities, sentence)
-        output_graph = create_graph(entity_container, context)
+        output_graph = create_graph(entity_container, context, grammarRelations)
         outputText.insert(END, output_graph.serialize(format='turtle').decode('utf-8'))
     else:
         print('No entities found!')
@@ -692,25 +608,6 @@ def threadButtonRun():
 
 
 def main():
-
-    '''
-    sentence = nltk.word_tokenize("Google CEO Sundar Pichai responded today to the firing of employee James Damore over his controversial memo on workplace diversity.")
-    #sentence = nltk.word_tokenize("Pope Francis in Chile at start of Latin America visit.")
-    #sentence = nltk.word_tokenize("'First Lady' apple pies in the Kruhek bakery in Melania Trumps hometown of Sevnica in Slovenia are selling like hot cakes.")
-    #sentence = nltk.word_tokenize("Shilpa Shetty and Raj Kundra, both 42, have been married for over eight years now. Viaan, 5, is the couple's only child. Shilpa's sister Shamita is also an actress.")
-    #sentence = nltk.word_tokenize("Mark works in JPMC in London every day")
-
-    st = StanfordNERTagger(CLASSIFIER_PATH, NER_PATH, encoding='utf-8')
-    ne_tagged_sent = st.tag(sentence)
-    ne_chunked_sent = stanford_ne_2_tree(ne_tagged_sent)
-
-    reldicts = getRelations(ne_chunked_sent)
-
-    for r in reldicts:
-        print("subject: %s, predicate: %s, obj: %s" % (r['subjtext'], r['predicate'], r['objtext']))
-    
-    '''
-
     """ Method used to run program"""
 
     top.title("Knowledge Extraction")
