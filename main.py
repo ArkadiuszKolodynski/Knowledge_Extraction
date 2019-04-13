@@ -18,7 +18,7 @@ nltk.download('averaged_perceptron_tagger')
 nltk.download('punkt')
 
 FILENAME = ""
-CLASSIFIER_PATH = 'stanford_ner/english.all.3class.distsim.crf.ser.gz'
+CLASSIFIER_PATH = 'stanford_ner/classifiers/english.all.3class.distsim.crf.ser.gz'
 NER_PATH = 'stanford_ner/stanford-ner.jar'
 top = Tk()
 Btn = None
