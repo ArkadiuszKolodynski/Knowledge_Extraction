@@ -218,3 +218,5 @@ pip-selfcheck.json
 request_data
 response_data
 
+stanford_ner
+sents
